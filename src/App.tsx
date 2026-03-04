@@ -427,6 +427,17 @@ export default function App() {
                     </select>
                     <button type="submit" className="w-full py-3 rounded-xl bg-neon-cyan text-[#0a0a0f] font-bold">Add Channel</button>
                   </form>
+                  <div className="pt-6">
+                    <label className="block text-[10px] font-mono text-white/40 uppercase mb-4">Manage Channels</label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                      {channels.map(c => (
+                        <div key={c.id} className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/10">
+                          <span className="text-xs text-white/60 truncate flex-1 mr-2">{c.name}</span>
+                          <button onClick={() => handleDeleteChannel(c.id)} className="p-1.5 rounded hover:bg-red-500/20 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-6">
                   <h3 className="text-sm font-bold text-neon-pink uppercase tracking-widest">Add Category</h3>
@@ -442,6 +453,14 @@ export default function App() {
                       <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"><Plus className="w-5 h-5 text-neon-pink" /></button>
                     </div>
                     <button onClick={handleSaveChanges} className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold flex items-center justify-center gap-2 mb-6"><Settings className="w-5 h-5" /> Save All Changes</button>
+                    <label className="block text-[10px] font-mono text-white/40 uppercase mb-2">Current Categories</label>
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map(cat => (
+                        <div key={cat} className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] text-white/60">
+                          {cat} {cat !== 'All' && <button onClick={() => handleDeleteCategory(cat)} className="hover:text-red-500"><X className="w-2.5 h-2.5" /></button>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
