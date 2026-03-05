@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Tv, Music, Radio, Globe, Rocket, Newspaper, ChevronRight, ExternalLink, Settings, X, Plus, Film, Trophy, Baby, Lock, Key, Tag, Trash2, Search, Heart } from 'lucide-react';
+import { Play, Tv, Music, Radio, Globe, Rocket, Newspaper, ChevronRight, ExternalLink, Settings, X, Plus, Film, Trophy, Baby, Lock, Key, Tag, Trash2, Search, Heart, Wand2, Loader2 } from 'lucide-react';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface Channel {
   id: string;
@@ -10,26 +11,12 @@ interface Channel {
   category: string;
 }
 
-const DEFAULT_CATEGORIES = ['All', 'News', 'Movies', 'Sport', 'Kids', 'Music', 'Science', 'Nature', 'Relax'];
+const DEFAULT_CATEGORIES = ['All', 'News', 'Movies', 'Sport', 'Kids', 'Music', 'Science', 'Nature', 'Relax', 'Playlists'];
 
 const INITIAL_CHANNELS: Channel[] = [
   { id: 'lofi-girl', name: 'Lofi Girl - Study/Sleep', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', icon: 'Music', category: 'Music' },
-  { id: 'jazzhop', name: 'Coffee Shop Jazz', url: 'https://www.youtube.com/watch?v=lP26UCnoH9s', icon: 'Music', category: 'Music' },
-  { id: 'synthwave', name: 'Synthwave Radio', url: 'https://www.youtube.com/watch?v=4xDzrJKXOOY', icon: 'Music', category: 'Music' },
   { id: 'nasa-tv', name: 'NASA TV Live', url: 'https://www.youtube.com/watch?v=21X5lGlDOfg', icon: 'Rocket', category: 'Science' },
-  { id: 'iss-live', name: 'ISS Earth View', url: 'https://www.youtube.com/watch?v=jPTD2gnZFUw', icon: 'Globe', category: 'Science' },
-  { id: 'tokyo-live', name: 'Tokyo Shibuya Crossing', url: 'https://www.youtube.com/watch?v=HpdO5Kq3o8Y', icon: 'Tv', category: 'Movies' },
-  { id: 'nyc-live', name: 'Times Square NYC', url: 'https://www.youtube.com/watch?v=mRe-514tGMg', icon: 'Tv', category: 'Movies' },
   { id: 'dd-news', name: 'DD News Live', url: 'https://www.youtube.com/live/U_S4pI6_h3Y', icon: 'Newspaper', category: 'News' },
-  { id: 'sansad-tv', name: 'Sansad TV Live', url: 'https://www.youtube.com/channel/UCv_vL8_S_Yv_mYy_S_Yv_mYy', icon: 'Newspaper', category: 'News' },
-  { id: 'al-jazeera', name: 'Al Jazeera English', url: 'https://www.youtube.com/watch?v=gCneWUtz39k', icon: 'Newspaper', category: 'News' },
-  { id: 'sky-news', name: 'Sky News Live', url: 'https://www.youtube.com/watch?v=9Auq9mYxFEE', icon: 'Newspaper', category: 'News' },
-  { id: 'kids-learning', name: 'Kids Learning Tube', url: 'https://www.youtube.com/watch?v=V_vL8_S_Yv_mYy', icon: 'Baby', category: 'Kids' },
-  { id: 'sports-live', name: 'Sports Highlights', url: 'https://www.youtube.com/watch?v=V_vL8_S_Yv_mYy', icon: 'Trophy', category: 'Sport' },
-  { id: 'nature-relax', name: 'Nature Relaxation', url: 'https://www.youtube.com/watch?v=nmY6f44nS1U', icon: 'Globe', category: 'Nature' },
-  { id: 'underwater', name: 'Coral Reef Cam', url: 'https://www.youtube.com/watch?v=W0LHTWG-umQ', icon: 'Globe', category: 'Nature' },
-  { id: 'meditation', name: 'Deep Meditation', url: 'https://www.youtube.com/watch?v=1ZYbU82GVz4', icon: 'Radio', category: 'Relax' },
-  { id: 'fireplace', name: 'Cozy Fireplace 24/7', url: 'https://www.youtube.com/watch?v=L_LUpnjgPso', icon: 'Tv', category: 'Relax' },
 ];
 
 const getIcon = (iconName: string) => {
@@ -43,6 +30,7 @@ const getIcon = (iconName: string) => {
     case 'Trophy': return <Trophy className="w-4 h-4" />;
     case 'Baby': return <Baby className="w-4 h-4" />;
     case 'Radio': return <Radio className="w-4 h-4" />;
+    case 'Wand2': return <Wand2 className="w-4 h-4" />;
     default: return <Tv className="w-4 h-4" />;
   }
 };
@@ -50,13 +38,12 @@ const getIcon = (iconName: string) => {
 const parseYouTubeUrl = (url: string) => {
   if (!url) return '';
   let videoId = '';
-  let channelId = '';
-
-  if (url.includes('channel/')) {
-    channelId = url.split('channel/')[1].split(/[?#]/)[0];
-    return `https://www.youtube.com/embed/live_stream?channel=${channelId}&autoplay=1&mute=1&controls=1&modestbranding=1&rel=0`;
+  let playlistId = '';
+  
+  if (url.includes('list=')) {
+    playlistId = url.split('list=')[1].split(/[&?#]/)[0];
   }
-
+  
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   if (match && match[2].length === 11) {
@@ -65,7 +52,11 @@ const parseYouTubeUrl = (url: string) => {
     videoId = url.split('/live/')[1].split(/[?#]/)[0];
   }
 
-  if (videoId) {
+  if (playlistId && videoId) {
+    return `https://www.youtube.com/embed/${videoId}?list=${playlistId}&autoplay=1&mute=1&controls=1&modestbranding=1&rel=0`;
+  } else if (playlistId) {
+    return `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1&mute=1&controls=1&modestbranding=1&rel=0`;
+  } else if (videoId) {
     return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=1&modestbranding=1&loop=1&playlist=${videoId}&rel=0`;
   }
   return '';
@@ -80,9 +71,7 @@ export default function App() {
     const saved = localStorage.getItem('aether_categories');
     return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
   });
-  const [adminPhoto, setAdminPhoto] = useState(() => {
-    return localStorage.getItem('aether_admin_photo') || '';
-  });
+  const [adminPhoto, setAdminPhoto] = useState(() => localStorage.getItem('aether_admin_photo') || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [currentChannel, setCurrentChannel] = useState<Channel>(channels[0]);
@@ -91,6 +80,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  const [isExpanding, setIsExpanding] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('aether_favorites');
     return saved ? JSON.parse(saved) : [];
@@ -146,6 +136,8 @@ export default function App() {
     if (!newChannel.name || !newChannel.url) return;
 
     const id = `custom-${Date.now()}`;
+    const isPlaylist = newChannel.url.includes('list=');
+    
     const iconMap: Record<string, string> = {
       'News': 'Newspaper', 'Movies': 'Film', 'Sport': 'Trophy', 'Kids': 'Baby',
       'Music': 'Music', 'Science': 'Rocket', 'Nature': 'Globe', 'Relax': 'Radio'
@@ -155,12 +147,60 @@ export default function App() {
       id,
       name: newChannel.name,
       url: newChannel.url,
-      category: newChannel.category,
-      icon: iconMap[newChannel.category] || 'Tv'
+      category: isPlaylist ? 'Playlists' : newChannel.category,
+      icon: isPlaylist ? 'Wand2' : (iconMap[newChannel.category] || 'Tv')
     };
 
     setChannels([...channels, channel]);
     setNewChannel({ name: '', url: '', category: categories[1] || 'News' });
+  };
+
+  const handleExpandPlaylist = async (channel: Channel) => {
+    if (!channel.url.includes('list=')) return;
+    setIsExpanding(channel.id);
+    
+    try {
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `I have a YouTube playlist URL: ${channel.url}. Please list the videos in this playlist. For each video, provide the Title and the Video ID. Return the data as a JSON array of objects with 'title' and 'id' properties. Use Google Search if needed to find the latest items in this specific playlist.`,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                id: { type: Type.STRING }
+              },
+              required: ["title", "id"]
+            }
+          }
+        }
+      });
+
+      const episodes = JSON.parse(response.text);
+      const newEpisodes: Channel[] = episodes.map((ep: any, index: number) => ({
+        id: `ep-${Date.now()}-${index}`,
+        name: `${channel.name} - ${ep.title}`,
+        url: `https://www.youtube.com/watch?v=${ep.id}`,
+        category: channel.name,
+        icon: 'Tv'
+      }));
+
+      if (!categories.includes(channel.name)) {
+        setCategories([...categories, channel.name]);
+      }
+      setChannels([...channels, ...newEpisodes]);
+      setShowSaveToast(true);
+    } catch (error) {
+      console.error("Expansion failed:", error);
+      alert("Could not expand playlist. Please ensure the link is public.");
+    } finally {
+      setIsExpanding(null);
+    }
   };
 
   const handleAddCategory = (e: React.FormEvent) => {
@@ -174,9 +214,7 @@ export default function App() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setAdminPhoto(reader.result as string);
-      };
+      reader.onloadend = () => setAdminPhoto(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -191,24 +229,17 @@ export default function App() {
   };
 
   const toggleFavorite = (id: string) => {
-    setFavorites(prev => 
-      prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
-    );
+    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
   };
 
-  const handleDeleteChannel = (id: string) => {
-    setChannels(channels.filter(c => c.id !== id));
-  };
-
+  const handleDeleteChannel = (id: string) => setChannels(channels.filter(c => c.id !== id));
   const handleDeleteCategory = (cat: string) => {
     if (cat === 'All') return;
     setCategories(categories.filter(c => c !== cat));
     setChannels(channels.map(c => c.category === cat ? { ...c, category: 'Relax' } : c));
   };
 
-  useEffect(() => {
-    setIsLoading(false);
-  }, []);
+  useEffect(() => { setIsLoading(false); }, []);
 
   const filteredChannels = channels.filter(c => {
     const matchesCategory = selectedCategory === 'All' || c.category === selectedCategory;
@@ -227,60 +258,31 @@ export default function App() {
               <button onClick={() => setIsAuthOpen(true)} className="relative group focus:outline-none">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-neon-pink to-neon-cyan p-[2px] overflow-hidden">
                   <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center overflow-hidden">
-                    {adminPhoto ? (
-                      <img src={adminPhoto} alt="Admin" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <Play className="w-5 h-5 text-neon-cyan fill-neon-cyan ml-0.5" />
-                    )}
+                    {adminPhoto ? <img src={adminPhoto} alt="Admin" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Play className="w-5 h-5 text-neon-cyan fill-neon-cyan ml-0.5" />}
                   </div>
                 </div>
               </button>
-              <h1 className="text-2xl font-bold tracking-tighter bg-gradient-to-r from-neon-pink to-neon-cyan bg-clip-text text-transparent hidden sm:block">
-                NkTvSetup
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tighter bg-gradient-to-r from-neon-pink to-neon-cyan bg-clip-text text-transparent hidden sm:block">NkTvSetup</h1>
             </div>
 
             <div className="relative hidden md:block max-w-xs w-full">
               <Search className="absolute left-3 top-2 w-4 h-4 text-white/20" />
-              <input 
-                type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search channels..."
-                className="w-full bg-white/5 border border-white/10 rounded-full pl-10 pr-4 py-1.5 text-xs text-white focus:outline-none focus:border-neon-cyan"
-              />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search channels..." className="w-full bg-white/5 border border-white/10 rounded-full pl-10 pr-4 py-1.5 text-xs text-white focus:outline-none focus:border-neon-cyan" />
             </div>
 
             <nav className="flex items-center gap-2 overflow-x-auto pb-2 category-nav">
               {categories.map(cat => (
-                <button
-                  key={cat} onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 ${
-                    selectedCategory === cat ? 'bg-neon-cyan text-[#0a0a0f]' : 'bg-white/5 text-white/60 hover:bg-white/10'
-                  }`}
-                >
-                  {cat}
-                </button>
+                <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 ${selectedCategory === cat ? 'bg-neon-cyan text-[#0a0a0f]' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}>{cat}</button>
               ))}
             </nav>
           </div>
           
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsFavoritesOpen(true)}
-              className="p-2 rounded-full bg-white/5 border border-white/10 text-neon-pink hover:bg-neon-pink/10 transition-colors relative"
-              title="Favorites"
-            >
+            <button onClick={() => setIsFavoritesOpen(true)} className="p-2 rounded-full bg-white/5 border border-white/10 text-neon-pink hover:bg-neon-pink/10 transition-colors relative">
               <Heart className={`w-5 h-5 ${favorites.length > 0 ? 'fill-neon-pink' : ''}`} />
-              {favorites.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-neon-pink text-white text-[10px] flex items-center justify-center rounded-full font-bold">
-                  {favorites.length}
-                </span>
-              )}
+              {favorites.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-neon-pink text-white text-[10px] flex items-center justify-center rounded-full font-bold">{favorites.length}</span>}
             </button>
-            <div className="md:hidden">
-              <button onClick={() => setIsAuthOpen(true)} className="p-2 rounded-full bg-white/5 border border-white/10 text-white/40">
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
+            <div className="md:hidden"><button onClick={() => setIsAuthOpen(true)} className="p-2 rounded-full bg-white/5 border border-white/10 text-white/40"><Settings className="w-4 h-4" /></button></div>
           </div>
         </div>
       </header>
@@ -288,14 +290,10 @@ export default function App() {
       <main className="flex-1 w-full px-4 md:px-8 lg:pr-0 py-4 md:py-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-4">
           <div ref={playerRef} className="relative aspect-video w-full">
-            <div className="absolute inset-0 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-               <Tv className="w-16 h-16 opacity-20" />
-            </div>
+            <div className="absolute inset-0 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden"><Tv className="w-16 h-16 opacity-20" /></div>
             <div className={`transition-all duration-500 ${isSticky ? 'fixed bottom-6 right-6 w-[320px] md:w-[400px] z-[100]' : 'absolute inset-0 w-full h-full z-10'}`}>
               <div className={`relative w-full h-full rounded-2xl overflow-hidden glass ${isSticky ? 'neon-border-cyan' : 'border border-white/10'}`}>
-                <AnimatePresence mode="wait">
-                  {isLoading && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 bg-[#0a0a0f] flex items-center justify-center"><div className="w-12 h-12 border-4 border-neon-cyan/20 border-t-neon-cyan rounded-full animate-spin"></div></motion.div>}
-                </AnimatePresence>
+                <AnimatePresence mode="wait">{isLoading && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 bg-[#0a0a0f] flex items-center justify-center"><div className="w-12 h-12 border-4 border-neon-cyan/20 border-t-neon-cyan rounded-full animate-spin"></div></motion.div>}</AnimatePresence>
                 {embedUrl ? <iframe src={embedUrl} className="w-full h-full" allow="autoplay; encrypted-media" allowFullScreen title={currentChannel.name}></iframe> : <div className="w-full h-full flex items-center justify-center text-white">Signal Lost</div>}
               </div>
             </div>
@@ -311,12 +309,7 @@ export default function App() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => toggleFavorite(currentChannel.id)}
-                  className={`p-1.5 rounded-lg border transition-colors ${favorites.includes(currentChannel.id) ? 'bg-neon-pink/20 border-neon-pink text-neon-pink' : 'bg-white/5 border-white/10 text-white/40 hover:text-neon-pink'}`}
-                >
-                  <Heart className={`w-4 h-4 ${favorites.includes(currentChannel.id) ? 'fill-neon-pink' : ''}`} />
-                </button>
+                <button onClick={() => toggleFavorite(currentChannel.id)} className={`p-1.5 rounded-lg border transition-colors ${favorites.includes(currentChannel.id) ? 'bg-neon-pink/20 border-neon-pink text-neon-pink' : 'bg-white/5 border-white/10 text-white/40 hover:text-neon-pink'}`}><Heart className={`w-4 h-4 ${favorites.includes(currentChannel.id) ? 'fill-neon-pink' : ''}`} /></button>
                 <button className="px-4 py-1.5 rounded-lg bg-neon-pink text-white text-xs font-semibold">Subscribe</button>
                 <a href={currentChannel.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-white/5 border border-white/10"><ExternalLink className="w-4 h-4 text-white/60" /></a>
               </div>
@@ -433,7 +426,14 @@ export default function App() {
                       {channels.map(c => (
                         <div key={c.id} className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/10">
                           <span className="text-xs text-white/60 truncate flex-1 mr-2">{c.name}</span>
-                          <button onClick={() => handleDeleteChannel(c.id)} className="p-1.5 rounded hover:bg-red-500/20 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <div className="flex items-center gap-1">
+                            {c.url.includes('list=') && (
+                              <button onClick={() => handleExpandPlaylist(c)} disabled={isExpanding === c.id} className="p-1.5 rounded hover:bg-neon-cyan/20 text-neon-cyan disabled:opacity-50">
+                                {isExpanding === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                            <button onClick={() => handleDeleteChannel(c.id)} className="p-1.5 rounded hover:bg-red-500/20 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -472,7 +472,7 @@ export default function App() {
       <AnimatePresence>
         {showSaveToast && (
           <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-full bg-emerald-500 text-white font-bold shadow-2xl flex items-center gap-2">
-            Changes Saved Successfully!
+            {isExpanding ? "Expanding Playlist..." : "Changes Saved Successfully!"}
           </motion.div>
         )}
       </AnimatePresence>
